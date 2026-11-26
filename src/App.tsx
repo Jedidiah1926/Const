@@ -10,7 +10,7 @@ import { DEFAULT_KINDS, DEFAULT_SHAPES, DOCS, EVENTS } from './data/sample';
 import type { AsideTab, DocMode, EntityId, GroupBy, LineMode, RelationKind, View, ZoneShape } from './data/types';
 import { fit, GRID_LEFT, pickUnit, zoomAt } from './lib/timeScale';
 import type { Viewport } from './lib/timeScale';
-import { useLocalDocs } from './lib/useLocalDocs';
+import { useVaultDocs } from './lib/useVaultDocs';
 
 // ?view=graph, ?group=kind 로 시작 화면을 고를 수 있어요
 const params = new URLSearchParams(window.location.search);
@@ -31,7 +31,7 @@ export function App() {
   const [lineMode, setLineMode] = useState<LineMode>('faction');
   const [vp, setVpState] = useState<Viewport>(() => fit(900));
   const [fitted, setFitted] = useState(false);
-  const { docs, setDoc, savedLabel } = useLocalDocs(DOCS);
+  const { docs, setDoc, savedLabel } = useVaultDocs(DOCS);
 
   const setVp = useCallback((fn: (v: Viewport) => Viewport) => setVpState(fn), []);
   const onFitted = useCallback(() => setFitted(true), []);
