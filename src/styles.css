@@ -191,3 +191,23 @@ input[type='text']:focus { outline: none; border-bottom-color: var(--text-faint)
 .ev-chip button { color: var(--text); font-size: 14px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .ev-chip span { font-size: 11px; color: var(--text-dimmer); }
 .ev-tags { padding: 20px 28px; font-size: 12px; color: var(--amber); }
+
+/* ── 시작 화면 (볼트 없음) ─────────────────────────── */
+.welcome { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 48px 16px; box-sizing: border-box; background: var(--bg); }
+.welcome-inner { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 20px; }
+.welcome-logo { font-size: 56px; line-height: 1; }
+.welcome-lead { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text-dim); }
+.welcome-note { margin: 0; font-size: 13px; color: var(--text-dimmer); }
+.welcome-actions { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.welcome-btn { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 0 4px; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--text-2); text-align: left; }
+.welcome-btn:hover, .welcome-btn:focus-visible { color: var(--text); background: #120e0a; outline: none; }
+.welcome-btn.primary { color: var(--amber); font-weight: 600; }
+.welcome-key { font-size: 12px; color: var(--text-dimmer); font-weight: 400; }
+.welcome-error { margin: 0; font-size: 13px; color: #ff8a73; }
+.empty-main { flex-grow: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: 48px; font-size: 14px; color: var(--text-dim); }
+.empty-main p { margin: 0; }
+.empty-main code { font-family: inherit; color: var(--text-2); }
+.empty-main .welcome-btn { margin-top: 12px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); font-size: 13px; }
+.aside-empty { margin: 0; padding: 24px; font-size: 13px; line-height: 1.7; color: var(--text-dimmer); }
+.doc-title { font-family: inherit; }
+button.doc-title:hover { color: var(--amber); }

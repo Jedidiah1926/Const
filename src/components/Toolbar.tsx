@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { TAGS } from '../data/sample';
-import type { GroupBy } from '../data/types';
+import type { GroupBy } from '../world/types';
 
 interface Props {
   isGrid: boolean;
@@ -12,10 +11,11 @@ interface Props {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  tags: string[];
 }
 
 export function Toolbar(p: Props) {
-  const [tag, setTag] = useState<string | null>('#전쟁');
+  const [tag, setTag] = useState<string | null>(null);
   return (
     <div className="toolbar">
       {p.isGrid && (
@@ -41,7 +41,7 @@ export function Toolbar(p: Props) {
         </>
       )}
       <span className="tb-label">태그</span>
-      {TAGS.map((t) => (
+      {p.tags.map((t) => (
         <button key={t} type="button" className="tag-btn" aria-pressed={tag === t} onClick={() => setTag(tag === t ? null : t)}>{t}</button>
       ))}
       <button type="button" className="tag-btn tag-add" aria-label="태그 추가">+</button>

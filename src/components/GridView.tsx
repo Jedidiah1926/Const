@@ -1,11 +1,11 @@
 // 격자 화면 (명세 2·3·4): 가로축 = 시간, 세로축 = 설정 목록
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ENTITIES, EVENTS, FOLDER_ERAS, FOLDER_GROUPS, FOLDER_ORDER, GLOBAL_ERAS, KIND_GROUPS, PALETTES } from '../data/sample';
-import type { ConstEvent, EntityId, GroupBy } from '../data/types';
-import { depthOf, folderOf, paletteOf } from '../lib/entities';
 import { buildTicks, fit, GRID_LEFT, zoomAt } from '../lib/timeScale';
 import type { Viewport } from '../lib/timeScale';
+import type { ConstEvent, EntityId, GroupBy } from '../world/types';
+import { useWorld } from '../world/worldIndex';
+import type { WorldIndex } from '../world/worldIndex';
 
 interface Props {
   vp: Viewport;
@@ -14,7 +14,7 @@ interface Props {
   onFitted: () => void;
   groupBy: GroupBy;
   showEra: boolean;
-  selected: ConstEvent;
+  selected: ConstEvent | undefined;
   onPickEvent: (ev: ConstEvent) => void;
   onOpenDoc: (id: EntityId) => void;
 }
@@ -22,6 +22,8 @@ interface Props {
 const ROW_H = 50;
 
 export function GridView({ vp, setVp, fitted, onFitted, groupBy, showEra, selected, onPickEvent, onOpenDoc }: Props) {
+  const ix = useWorld();
+  const span = ix.world.span;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const vpRef = useRef(vp);
@@ -35,7 +37,7 @@ export function GridView({ vp, setVp, fitted, onFitted, groupBy, showEra, select
       const w = el.clientWidth;
       if (!w) return;
       if (!fitted) {
-        setVp(() => fit(w));
+        setVp(() => fit(w, span));
         onFitted();
       } else setVp((v) => (Math.abs(w - v.viewW) > 1 ? { ...v, viewW: w } : v));
     };
@@ -84,9 +86,9 @@ export function GridView({ vp, setVp, fitted, onFitted, groupBy, showEra, select
       el.removeEventListener('pointerup', onEnd);
       el.removeEventListener('pointercancel', onEnd);
     };
-  }, [fitted, onFitted, setVp]);
+  }, [fitted, onFitted, setVp, span]);
 
-  const L = useMemo(() => layout(vp, groupBy, showEra, selected, setVp), [vp, groupBy, showEra, selected, setVp]);
+  const L = useMemo(() => layout(ix, vp, groupBy, showEra, selected, setVp), [ix, vp, groupBy, showEra, selected, setVp]);
 
   return (
     <div ref={scrollRef} className={'grid-scroll' + (dragging ? ' dragging' : '')}>
@@ -173,7 +175,11 @@ export function GridView({ vp, setVp, fitted, onFitted, groupBy, showEra, select
   );
 }
 
-function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: ConstEvent, setVp: Props['setVp']) {
+function layout(ix: WorldIndex, vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: ConstEvent | undefined, setVp: Props['setVp']) {
+  const { world: w, folderOf, paletteOf, depthOf } = ix;
+  const ENTITIES = w.entities;
+  const PALETTES = w.palettes;
+  const EVENTS = ix.events;
   const { ppy, viewW: vw } = vp;
   const X = (v: number) => GRID_LEFT + (v - vp.view0) * ppy;
   // 화면 밖은 그리지 않고, 생애선·시대 띠는 화면 경계에서 잘라요
@@ -197,8 +203,7 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
     });
 
   // ── 왼쪽 바와 줄 ──
-  const groupsSpec: { folder?: EntityId; label?: string; ids: EntityId[] }[] =
-    groupBy === 'folder' ? FOLDER_GROUPS : KIND_GROUPS;
+  const groupsSpec = groupBy === 'folder' ? ix.folderGroups : ix.kindGroups;
   let y = 80;
   let idx = 0;
   const groups: { top: number; height: number; label: string }[] = [];
@@ -214,7 +219,7 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
 
   groupsSpec.forEach((g) => {
     const top = y;
-    const fe = showEra && g.folder ? FOLDER_ERAS[g.folder] ?? [] : [];
+    const fe = showEra && g.folder ? w.folderEras[g.folder] ?? [] : [];
     if (fe.length && g.folder) {
       const p = PALETTES[g.folder];
       rowBgs.push({ top: y, height: 24, background: p.bg });
@@ -225,14 +230,14 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
       const r = ENTITIES[id];
       const p = paletteOf(id);
       const isHead = groupBy === 'folder' && !!r.isFolder;
-      const depth = groupBy === 'folder' ? (r.isFolder ? depthOf(id) : depthOf(r.folder!) + 1) : 0;
-      const inSel = selected.rows.includes(id);
+      const depth = groupBy === 'folder' ? (r.isFolder ? depthOf(id) : r.folder ? depthOf(r.folder) + 1 : 0) : 0;
+      const inSel = !!selected?.rows.includes(id);
       const left = groupBy === 'folder' ? 20 + depth * 16 : 44;
       rowBgs.push({ top: y, height: ROW_H, background: p.bg });
       const kind =
         groupBy === 'folder'
           ? isHead ? (depth ? r.kind : '') : r.kind
-          : r.isFolder && !r.parent ? '' : ENTITIES[r.isFolder ? r.parent! : r.folder!].name;
+          : ENTITIES[(r.isFolder ? r.parent : r.folder) ?? '']?.name ?? '';
       rows.push({
         id, name: r.name, kind, top: y, left, mutedColor: p.muted,
         nameStyle: { color: inSel ? p.sel : r.isFolder ? p.head : p.text, fontWeight: r.isFolder ? 700 : 500 },
@@ -268,8 +273,11 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
   // 폴더 막대: 폴더 줄 바로 아래 줄부터 마지막 후손 줄까지. 하위 폴더 막대는 안쪽에 나란히
   const bars: CSSProperties[] = [];
   if (groupBy === 'folder') {
-    FOLDER_ORDER.forEach((f) => {
-      const desc = orderList.filter((id) => id !== f && (folderOf(id) === f || ENTITIES[folderOf(id)].parent === f));
+    ix.folderOrder.forEach((f) => {
+      const desc = orderList.filter((id) => {
+        const of = folderOf(id);
+        return id !== f && !!of && (of === f || ENTITIES[of].parent === f);
+      });
       if (!desc.length) return;
       const t0 = Math.min(...desc.map((id) => rowTop[id]));
       const t1 = Math.max(...desc.map((id) => rowTop[id])) + ROW_H;
@@ -277,7 +285,7 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
     });
   }
 
-  const eras = GLOBAL_ERAS.map((e) => ({
+  const eras = w.globalEras.map((e) => ({
     name: e.name,
     line: { left: cX(X(e.s)), width: Math.max(0, cX(X(e.e)) - cX(X(e.s)) - 6) } as CSSProperties,
     label: { left: cX(X(e.s)), display: offscreen(e.s, e.e) ? 'none' : undefined } as CSSProperties,
@@ -300,7 +308,7 @@ function layout(vp: Viewport, groupBy: GroupBy, showEra: boolean, selected: Cons
   const nodes: CSSProperties[] = [];
   const events: { ev: ConstEvent; title: string; style: CSSProperties }[] = [];
   EVENTS.forEach((ev) => {
-    const on = ev.id === selected.id;
+    const on = ev.id === selected?.id;
     const top = Math.min(...ev.rows.map((r) => cy[r]));
     const x = evX[ev.id];
     if (x < 215 || x > vw + 20) return;

@@ -1,12 +1,10 @@
 // 관계도 화면 (명세 5·6)
 import type { CSSProperties } from 'react';
-import { ENTITIES, EVENTS, FOLDER_ORDER, GRAPH_KEYS, PALETTES, RELATIONS, ZONE_BASE } from '../data/sample';
-import type { ConstEvent, EntityId, LineMode, RelationKind, ZoneShape } from '../data/types';
-import { clamp01, mix, smoothstep } from '../lib/color';
-import { depthOf, paletteOf } from '../lib/entities';
+import { clamp01, mix } from '../lib/color';
+import type { ConstEvent, EntityId, LineMode, RelationKind, ZoneShape } from '../world/types';
+import { useWorld } from '../world/worldIndex';
+import type { WorldIndex } from '../world/worldIndex';
 
-const YR_MIN = 1200;
-const YR_MAX = 1240;
 const TRACK_H = 320;
 const AMBER = '#FFA41C';
 const NEW_KIND_COLORS = ['#4FC3F7', '#F06292', '#FFD54F', '#90A4AE'];
@@ -14,12 +12,11 @@ const NEW_KIND_COLORS = ['#4FC3F7', '#F06292', '#FFD54F', '#90A4AE'];
 interface Props {
   yr: number;
   onYear: (yr: number, eventId?: string) => void;
-  currentEvent: ConstEvent;
+  currentEvent: ConstEvent | undefined;
   kinds: RelationKind[];
   setKinds: (k: RelationKind[]) => void;
   lineMode: LineMode;
   onLineMode: (m: LineMode) => void;
-  shapes: Record<EntityId, ZoneShape>;
   onShape: (f: EntityId, s: ZoneShape) => void;
 }
 
@@ -32,19 +29,21 @@ export function GraphView(p: Props) {
           <span className="graph-year-num">{Math.floor(p.yr)}</span>
           <span className="graph-year-cap">년의 관계</span>
         </div>
-        <GraphStage yr={p.yr} kinds={p.kinds} lineMode={p.lineMode} shapes={p.shapes} />
+        <GraphStage yr={p.yr} kinds={p.kinds} lineMode={p.lineMode} />
       </div>
     </div>
   );
 }
 
 // ── 왼쪽 패널: 기준 시점 / 관계 종류 / 구역 모양 ──
-function GraphSide({ yr, onYear, currentEvent, kinds, setKinds, lineMode, onLineMode, shapes, onShape }: Props) {
-  const T = (v: number) => 10 + ((v - YR_MIN) / (YR_MAX - YR_MIN)) * TRACK_H;
-  const marks = [...new Set(EVENTS.map((e) => Math.floor(e.year)))].map((v) => {
-    const list = EVENTS.filter((e) => Math.floor(e.year) === v).sort((a, b) => a.ord - b.ord);
+function GraphSide({ yr, onYear, currentEvent, kinds, setKinds, lineMode, onLineMode, onShape }: Props) {
+  const ix = useWorld();
+  const { entities: ENTITIES, palettes: PALETTES, shapes, span } = ix.world;
+  const T = (v: number) => 10 + ((v - span.start) / (span.end - span.start)) * TRACK_H;
+  const marks = [...new Set(ix.events.map((e) => Math.floor(e.year)))].filter((v) => v >= span.start && v <= span.end).map((v) => {
+    const list = ix.events.filter((e) => Math.floor(e.year) === v).sort((a, b) => a.ord - b.ord);
     const past = v <= yr;
-    const cur = Math.floor(currentEvent.year) === v;
+    const cur = !!currentEvent && Math.floor(currentEvent.year) === v;
     return { v, list, past, cur };
   });
   const setKind = (id: string, patch: Partial<RelationKind>) => setKinds(kinds.map((k) => (k.id === id ? { ...k, ...patch } : k)));
@@ -84,9 +83,9 @@ function GraphSide({ yr, onYear, currentEvent, kinds, setKinds, lineMode, onLine
             type="range"
             className="yr-range"
             aria-label="기준 연도"
-            min={YR_MIN}
-            max={YR_MAX}
-            step={0.1}
+            min={span.start}
+            max={span.end}
+            step={Math.max(0.01, (span.end - span.start) / 400)}
             value={yr}
             onChange={(e) => onYear(parseFloat(e.target.value))}
           />
@@ -112,11 +111,11 @@ function GraphSide({ yr, onYear, currentEvent, kinds, setKinds, lineMode, onLine
 
       <div className="side-section" style={{ gap: 8 }}>
         <span className="side-title">구역 모양</span>
-        {FOLDER_ORDER.map((f) => (
+        {ix.folderOrder.map((f) => (
           <div key={f} className="shape-row">
-            <span className="shape-name" style={{ color: PALETTES[f].text }}>{(depthOf(f) ? '└ ' : '') + ENTITIES[f].name}</span>
+            <span className="shape-name" style={{ color: PALETTES[f].text }}>{(ix.depthOf(f) ? '└ ' : '') + ENTITIES[f].name}</span>
             {shapeOpts.map(([v, label, radius]) => {
-              const on = shapes[f] === v;
+              const on = (shapes[f] ?? 'circle') === v;
               return (
                 <button
                   key={v}
@@ -185,32 +184,21 @@ function inPoly(x: number, y: number, pts: Pt[]): boolean {
   return c;
 }
 
-const nodeR = (id: EntityId) => (ENTITIES[id].isFolder ? (ENTITIES[id].parent ? 8 : 10) : 6);
-
-function GraphStage({ yr, kinds, lineMode, shapes }: { yr: number; kinds: RelationKind[]; lineMode: LineMode; shapes: Record<EntityId, ZoneShape> }) {
+function GraphStage({ yr, kinds, lineMode }: { yr: number; kinds: RelationKind[]; lineMode: LineMode }) {
+  const ix: WorldIndex = useWorld();
+  const { entities: ENTITIES, palettes: PALETTES, shapes, relations: RELATIONS } = ix.world;
+  const { paletteOf, depthOf } = ix;
+  const nodeR = (id: EntityId) => (ENTITIES[id].isFolder ? (ENTITIES[id].parent ? 8 : 10) : 6);
   // 노드 위치: 연도별 키프레임을 smoothstep 보간
-  const posAt = (id: EntityId): Pt => {
-    const k = GRAPH_KEYS[id];
-    if (yr <= k[0][0]) return [k[0][1], k[0][2]];
-    for (let i = 0; i < k.length - 1; i++) {
-      const [t0, x0, y0] = k[i], [t1, x1, y1] = k[i + 1];
-      if (yr <= t1) {
-        const t = smoothstep(clamp01((yr - t0) / (t1 - t0)));
-        return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
-      }
-    }
-    const l = k[k.length - 1];
-    return [l[1], l[2]];
-  };
   const pos: Record<EntityId, Pt> = {};
-  Object.keys(GRAPH_KEYS).forEach((id) => {
-    const [x, y] = posAt(id);
+  ix.ids.forEach((id) => {
+    const [x, y] = ix.posAt(id, yr);
     pos[id] = [Math.round(x), Math.round(y)];
   });
 
-  const zones: Zone[] = FOLDER_ORDER.map((f) => {
-    const z = ZONE_BASE[f];
-    const shape = shapes[f];
+  const zones: Zone[] = ix.folderOrder.map((f) => {
+    const z = ix.zones[f];
+    const shape = shapes[f] ?? 'circle';
     const pts = shape === 'free' ? blob(z) : undefined;
     return {
       f, shape, depth: depthOf(f), ...z, pts,

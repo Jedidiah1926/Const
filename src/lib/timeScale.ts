@@ -5,8 +5,13 @@ export const GRID_LEFT = 240;
 export const SIDEBAR_W = 210;
 export const MIN_PPY = 0.002;
 export const MAX_PPY = 2e6;
-export const FIT_FROM = 1196;
-export const FIT_YEARS = 48;
+/** 처음 화면은 작품 시간 범위 앞뒤로 이만큼(범위의 10%, 최소 1년) 여유를 둬요 */
+const fitPad = (span: Span) => Math.max(1, (span.end - span.start) * 0.1);
+
+export interface Span {
+  start: number;
+  end: number;
+}
 
 export interface Viewport {
   view0: number;
@@ -69,7 +74,9 @@ export function zoomAt(vp: Viewport, px: number, k: number): Viewport {
   return { ...vp, ppy, view0: at - (px - GRID_LEFT) / ppy };
 }
 
-/** 처음 화면: 1196~1244년이 화면 폭에 딱 맞게 */
-export function fit(viewW: number): Viewport {
-  return { viewW, ppy: (viewW - GRID_LEFT - 20) / FIT_YEARS, view0: FIT_FROM };
+/** 처음 화면: 작품 시간 범위(앞뒤 여유 포함)가 화면 폭에 딱 맞게. 예시 작품은 1196~1244년 */
+export function fit(viewW: number, span: Span): Viewport {
+  const pad = fitPad(span);
+  const years = span.end - span.start + pad * 2;
+  return { viewW, ppy: Math.max(MIN_PPY, (viewW - GRID_LEFT - 20) / years), view0: span.start - pad };
 }

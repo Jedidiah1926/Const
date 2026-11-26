@@ -1,5 +1,5 @@
-import { ENTITIES } from '../data/sample';
-import type { ConstEvent, EntityId } from '../data/types';
+import type { ConstEvent, EntityId } from '../world/types';
+import { useWorld } from '../world/worldIndex';
 
 interface Props {
   ev: ConstEvent;
@@ -7,6 +7,7 @@ interface Props {
 }
 
 export function EventPanel({ ev, onOpen }: Props) {
+  const ENTITIES = useWorld().world.entities;
   return (
     <>
       <div className="ev-head">
@@ -24,7 +25,7 @@ export function EventPanel({ ev, onOpen }: Props) {
           </div>
         ))}
       </div>
-      <div className="ev-tags">{ev.tags}</div>
+      <div className="ev-tags">{ev.tags.join(' ')}</div>
     </>
   );
 }

@@ -1,13 +1,12 @@
 // 문서 탭 (명세 8): 파일 경로 → 종류 + [보기 | 편집] → 본문 → 백링크 → 저장 상태
-import { ENTITIES } from '../data/sample';
-import type { DocMode, EntityId } from '../data/types';
-import { docPath, idByName, paletteOf } from '../lib/entities';
 import { linksTo, parseMarkdown } from '../lib/markdown';
+import type { DocMode, EntityId } from '../world/types';
+import { useWorld } from '../world/worldIndex';
 import type { Inline } from '../lib/markdown';
 
 interface Props {
   docId: EntityId;
-  docs: Record<EntityId, string>;
+  root: string;
   mode: DocMode;
   onMode: (m: DocMode) => void;
   onOpen: (id: EntityId) => void;
@@ -15,7 +14,9 @@ interface Props {
   savedLabel: string;
 }
 
-export function DocPanel({ docId, docs, mode, onMode, onOpen, onEdit, savedLabel }: Props) {
+export function DocPanel({ docId, root, mode, onMode, onOpen, onEdit, savedLabel }: Props) {
+  const { world, idByName, paletteOf, pathOf } = useWorld();
+  const { entities: ENTITIES, docs } = world;
   const ent = ENTITIES[docId];
   const raw = docs[docId] ?? '';
   const backIds = Object.keys(docs).filter((id) => id !== docId && linksTo(docs[id], ent.name));
@@ -50,7 +51,7 @@ export function DocPanel({ docId, docs, mode, onMode, onOpen, onEdit, savedLabel
   return (
     <>
       <div className="doc-head">
-        <span className="doc-path">{docPath(docId)}</span>
+        <span className="doc-path">{root + '/' + pathOf(docId)}</span>
         <div className="doc-meta">
           <span className="doc-kind">{ent.kind + (ent.isFolder ? ' · 폴더' : '')}</span>
           <div className="doc-modes">

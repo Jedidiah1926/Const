@@ -1,19 +1,25 @@
-import { VAULT_NAME } from '../data/sample';
-import type { View } from '../data/types';
+import type { View } from '../world/types';
 
 interface Props {
   view: View;
   onView: (v: View) => void;
+  vaultName: string;
+  /** 볼트 이름을 누르면 다른 볼트 열기 (Electron에서만) */
+  onOpenVault?: () => void;
 }
 
-export function Header({ view, onView }: Props) {
+export function Header({ view, onView, vaultName, onOpenVault }: Props) {
   return (
     <header className="header">
       <div className="header-cell">
         <span className="logo">CONST</span>
       </div>
       <div className="header-cell">
-        <span className="doc-title">{VAULT_NAME}</span>
+        {onOpenVault ? (
+          <button type="button" className="doc-title" title="다른 볼트 열기 (Ctrl+O)" onClick={onOpenVault}>{vaultName}</button>
+        ) : (
+          <span className="doc-title">{vaultName}</span>
+        )}
       </div>
       <label className="search">
         <span className="search-key num">/</span>
