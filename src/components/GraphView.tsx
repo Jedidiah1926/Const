@@ -1,6 +1,6 @@
 // 관계도 화면 (명세 5·6)
 import type { CSSProperties } from 'react';
-import { clamp01, mix } from '../lib/color';
+import { clamp01 } from '../lib/color';
 import type { ConstEvent, EntityId, LineMode, RelationKind, ZoneShape } from '../world/types';
 import { useWorld } from '../world/worldIndex';
 import type { WorldIndex } from '../world/worldIndex';
@@ -253,33 +253,18 @@ function GraphStage({ yr, kinds, lineMode, onOpenDoc }: { yr: number; kinds: Rel
       fill = kd.color;
       endCol = kd.color;
     } else {
-      // 폴더 모드: 선을 따라 5px 간격으로 구역 확인, 빈 곳은 앞뒤 구역색 보간
-      const N = Math.max(16, Math.round(len / 5));
-      const zk: (EntityId | null)[] = [];
-      for (let i = 0; i <= N; i++) {
-        const z = zoneAt(x1 + (ux * len * i) / N, y1 + (uy * len * i) / N);
-        zk.push(z ? z.f : null);
-      }
-      const baseAt = (i: number) => {
-        if (zk[i]) return PALETTES[zk[i]!].c;
-        let lo = i, hi = i;
-        while (lo > 0 && !zk[lo]) lo--;
-        while (hi < N && !zk[hi]) hi++;
-        const cp = zk[lo] ? PALETTES[zk[lo]!].c : null;
-        const cq = zk[hi] ? PALETTES[zk[hi]!].c : null;
-        if (cp && cq) return mix(cp, cq, (i - lo) / (hi - lo));
-        return cp || cq || paletteOf(a).c;
+      // 폴더 모드: 색1 ─ 관계색 ─ 색2.
+      // 출발 쪽은 출발 노드가 있는 구역의 색, 대상 쪽은 대상 노드가 있는 구역의 색(구역 밖이면 자기 폴더 색).
+      // 라벨 구간만 관계 색이고, 그 앞뒤 26px에서 부드럽게 바뀌어요
+      const endColor = (id: EntityId) => {
+        const z = zoneAt(pos[id][0], pos[id][1]);
+        return z ? PALETTES[z.f].c : paletteOf(id).c;
       };
-      // 라벨 근처에서만 바탕색 → 관계색 → 바탕색
+      const c1 = endColor(a), c2 = endColor(b);
       const lc = len * (both ? 0.5 : 0.42), half = kd.name.length * 6.5 + 10, fade = 26;
-      const stops: string[] = [];
-      for (let i = 0; i <= N; i++) {
-        const x = (len * i) / N, d = Math.abs(x - lc);
-        const w = d <= half ? 1 : d >= half + fade ? 0 : 1 - (d - half) / fade;
-        stops.push(mix(baseAt(i), kd.color, w) + ' ' + x.toFixed(1) + 'px');
-      }
-      fill = 'linear-gradient(to right, ' + stops.join(', ') + ')';
-      endCol = stops[stops.length - 1].split(' ')[0];
+      const at = (x: number) => Math.max(0, Math.min(len, x)).toFixed(1) + 'px';
+      fill = `linear-gradient(to right, ${c1} 0px, ${c1} ${at(lc - half - fade)}, ${kd.color} ${at(lc - half)}, ${kd.color} ${at(lc + half)}, ${c2} ${at(lc + half + fade)}, ${c2} ${at(len)})`;
+      endCol = c2;
     }
     const ang = (Math.atan2(uy, ux) * 180) / Math.PI;
     edges.push({ left: x1, top: y1 - 1, width: Math.round(len), background: fill, transform: `rotate(${ang.toFixed(1)}deg)` });
