@@ -18,6 +18,7 @@ interface Props {
   lineMode: LineMode;
   onLineMode: (m: LineMode) => void;
   onShape: (f: EntityId, s: ZoneShape) => void;
+  onOpenDoc: (id: EntityId) => void;
 }
 
 export function GraphView(p: Props) {
@@ -29,7 +30,7 @@ export function GraphView(p: Props) {
           <span className="graph-year-num">{Math.floor(p.yr)}</span>
           <span className="graph-year-cap">년의 관계</span>
         </div>
-        <GraphStage yr={p.yr} kinds={p.kinds} lineMode={p.lineMode} />
+        <GraphStage yr={p.yr} kinds={p.kinds} lineMode={p.lineMode} onOpenDoc={p.onOpenDoc} />
       </div>
     </div>
   );
@@ -184,7 +185,7 @@ function inPoly(x: number, y: number, pts: Pt[]): boolean {
   return c;
 }
 
-function GraphStage({ yr, kinds, lineMode }: { yr: number; kinds: RelationKind[]; lineMode: LineMode }) {
+function GraphStage({ yr, kinds, lineMode, onOpenDoc }: { yr: number; kinds: RelationKind[]; lineMode: LineMode; onOpenDoc: (id: EntityId) => void }) {
   const ix: WorldIndex = useWorld();
   const { entities: ENTITIES, palettes: PALETTES, shapes, relations: RELATIONS } = ix.world;
   const { paletteOf, depthOf } = ix;
@@ -290,7 +291,7 @@ function GraphStage({ yr, kinds, lineMode }: { yr: number; kinds: RelationKind[]
   });
 
   return (
-    <div className="graph-stage" role="img" aria-label="설정 관계도">
+    <div className="graph-stage" aria-label="설정 관계도">
       {zones.map((z) => {
         const pal = PALETTES[z.f];
         const tint = pal.c + (z.depth ? '10' : '0A');
@@ -339,8 +340,11 @@ function GraphStage({ yr, kinds, lineMode }: { yr: number; kinds: RelationKind[]
                 ...(alive ? { background: pal.c } : { border: '1.5px solid ' + pal.c + '88' }),
               }}
             />
-            <span
+            <button
+              type="button"
               className="g-node-label"
+              title={r.name + ' 문서 열기'}
+              onClick={() => onOpenDoc(id)}
               style={{
                 left: x, top: y + s / 2 + 6,
                 color: alive ? (r.isFolder ? pal.head : pal.text) : 'var(--text-faint)',
@@ -348,7 +352,7 @@ function GraphStage({ yr, kinds, lineMode }: { yr: number; kinds: RelationKind[]
               }}
             >
               {r.name + (alive ? '' : ' (부재)')}
-            </span>
+            </button>
           </span>
         );
       })}

@@ -1,0 +1,47 @@
+# main에 푸시하면 웹 미리보기(브라우저용 빌드)를 GitHub Pages에 올려요.
+# 브라우저에서는 볼트 파일을 다룰 수 없어서 예시 작품을 메모리에서만 보여줘요.
+# 처음 한 번: 저장소 Settings › Pages › Build and deployment › Source를 "GitHub Actions"로.
+name: Deploy web preview to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          # 웹 빌드에는 Electron 실행 파일이 필요 없어요
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

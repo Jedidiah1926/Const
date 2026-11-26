@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fit, GRID_LEFT, pickUnit, zoomAt } from '../lib/timeScale';
 import type { Viewport } from '../lib/timeScale';
 import type { VaultApi } from '../world/useVault';
-import type { AsideTab, DocMode, EntityId, GroupBy, LineMode, View } from '../world/types';
+import type { AsideTab, ConstEvent, DocMode, EntityId, GroupBy, LineMode, View } from '../world/types';
+import { newId } from '../world/vaultFormat';
+import { atOf, dateLabel } from '../lib/calendar';
 import { useWorld } from '../world/worldIndex';
 import { DocPanel } from './DocPanel';
 import { EventPanel } from './EventPanel';
@@ -38,6 +40,7 @@ export function Workspace({ vault, root }: { vault: VaultApi; root: string }) {
     () => ix.events.find((e) => e.id === selectedId)?.rows.find((r) => !world.entities[r].isFolder) ?? ix.ids[0] ?? '',
   );
   const [docMode, setDocMode] = useState<DocMode>('view');
+  const [eventMode, setEventMode] = useState<DocMode>('view');
   const [lineMode, setLineMode] = useState<LineMode>('faction');
   const [vp, setVpState] = useState<Viewport>(() => fit(900, world.span));
   const [fitted, setFitted] = useState(false);
@@ -61,6 +64,33 @@ export function Workspace({ vault, root }: { vault: VaultApi; root: string }) {
     setDocId(id);
     setDocMode('view');
   };
+  // ── 사건 편집 (.const/events.json) ──
+  const changeEvent = (ev: ConstEvent) => {
+    vault.setEvents(world.events.map((e) => (e.id === ev.id ? ev : e)));
+    if (view === 'graph') setYr(ev.year);
+  };
+  const newEvent = () => {
+    const year = Math.floor(view === 'graph' ? yr : selected?.year ?? world.span.start);
+    const ev: ConstEvent = {
+      id: newId(new Set(world.events.map((e) => e.id))),
+      title: '새 사건', year, at: atOf(1, 1), date: dateLabel(1, 1),
+      ord: world.events.filter((e) => e.year === year && e.at === 0).length,
+      rows: [docId ?? ix.ids[0]].filter(Boolean), desc: '', tags: [],
+    };
+    if (!ev.rows.length) return;
+    vault.setEvents([...world.events, ev]);
+    setSelectedId(ev.id);
+    setYr(ev.year);
+    setAsideTab('event');
+    setEventMode('edit');
+  };
+  const deleteEvent = (id: string) => {
+    const rest = world.events.filter((e) => e.id !== id);
+    vault.setEvents(rest);
+    setSelectedId(rest[0]?.id ?? '');
+    setEventMode('view');
+  };
+
   const center = () => GRID_LEFT + (vp.viewW - GRID_LEFT) / 2;
 
   return (
@@ -115,6 +145,7 @@ export function Workspace({ vault, root }: { vault: VaultApi; root: string }) {
               lineMode={lineMode}
               onLineMode={setLineMode}
               onShape={vault.setShape}
+              onOpenDoc={openDoc}
             />
           )}
           <StatusBar root={root} />
@@ -135,14 +166,21 @@ export function Workspace({ vault, root }: { vault: VaultApi; root: string }) {
                 onOpen={openDoc}
                 onEdit={(raw) => vault.setDoc(docId, raw)}
                 savedLabel={vault.saveLabel}
+                onRelations={vault.setRelations}
               />
             ) : (
               <p className="aside-empty">열린 문서가 없어요.</p>
             )
-          ) : selected ? (
-            <EventPanel ev={selected} onOpen={openDoc} />
           ) : (
-            <p className="aside-empty">사건이 없어요. .const/events.json에 사건을 추가하면 여기에 나타나요.</p>
+            <EventPanel
+              ev={selected}
+              mode={eventMode}
+              onMode={setEventMode}
+              onOpen={openDoc}
+              onChange={changeEvent}
+              onNew={newEvent}
+              onDelete={deleteEvent}
+            />
           )}
         </aside>
       </div>

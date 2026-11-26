@@ -1,7 +1,8 @@
 // 문서 탭 (명세 8): 파일 경로 → 종류 + [보기 | 편집] → 본문 → 백링크 → 저장 상태
 import { linksTo, parseMarkdown } from '../lib/markdown';
-import type { DocMode, EntityId } from '../world/types';
+import type { DocMode, EntityId, Relation } from '../world/types';
 import { useWorld } from '../world/worldIndex';
+import { RelationList } from './RelationList';
 import type { Inline } from '../lib/markdown';
 
 interface Props {
@@ -12,9 +13,10 @@ interface Props {
   onOpen: (id: EntityId) => void;
   onEdit: (raw: string) => void;
   savedLabel: string;
+  onRelations: (r: Relation[]) => void;
 }
 
-export function DocPanel({ docId, root, mode, onMode, onOpen, onEdit, savedLabel }: Props) {
+export function DocPanel({ docId, root, mode, onMode, onOpen, onEdit, savedLabel, onRelations }: Props) {
   const { world, idByName, paletteOf, pathOf } = useWorld();
   const { entities: ENTITIES, docs } = world;
   const ent = ENTITIES[docId];
@@ -72,6 +74,7 @@ export function DocPanel({ docId, root, mode, onMode, onOpen, onEdit, savedLabel
             <span className="md-hint">[[문서 이름]]으로 다른 문서에 연결해요. # 제목, - 목록, **굵게**</span>
           </>
         )}
+        <RelationList id={docId} editing={mode === 'edit'} onOpen={onOpen} onChange={onRelations} />
         <div className="backlinks">
           <span className="backlinks-title">이 문서를 가리키는 문서 {backIds.length}</span>
           {backIds.map((id) => (

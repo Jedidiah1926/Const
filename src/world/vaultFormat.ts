@@ -83,7 +83,7 @@ function parseJson<T>(text: string | undefined): T | undefined {
 }
 const json = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
 
-function newId(taken: Set<string>): string {
+export function newId(taken: Set<string>): string {
   let id: string;
   do id = Math.random().toString(36).slice(2, 8);
   while (taken.has(id));

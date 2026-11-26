@@ -4,16 +4,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VaultFiles } from '../../shared/ipc';
 import { SAMPLE_NAME, SAMPLE_WORLD } from './sample';
-import type { EntityId, RelationKind, World, ZoneShape } from './types';
-import { entityPath, loadWorld, serializeEntity, serializeSettings, serializeWorld, SETTINGS } from './vaultFormat';
+import type { ConstEvent, EntityId, Relation, RelationKind, World, ZoneShape } from './types';
+import { entityPath, EVENTS, loadWorld, RELATIONS, serializeEntity, serializeEvents, serializeRelations, serializeSettings, serializeWorld, SETTINGS } from './vaultFormat';
 
 const DEBOUNCE_MS = 500;
 const RESCAN_MS = 250;
 
 export type VaultStatus = 'loading' | 'none' | 'ready' | 'error';
 
-/** 저장을 기다리는 것: 설정 문서 하나 또는 settings.json */
-type Pending = `entity:${string}` | 'settings';
+/** 저장을 기다리는 것: 설정 문서 하나 또는 .const의 파일 하나 */
+type Pending = `entity:${string}` | 'settings' | 'events' | 'relations';
 
 export interface VaultApi {
   status: VaultStatus;
@@ -29,6 +29,8 @@ export interface VaultApi {
   setDoc(id: EntityId, body: string): void;
   setKinds(kinds: RelationKind[]): void;
   setShape(folder: EntityId, shape: ZoneShape): void;
+  setEvents(events: ConstEvent[]): void;
+  setRelations(relations: Relation[]): void;
 }
 
 export function useVault(): VaultApi {
@@ -80,6 +82,8 @@ export function useVault(): VaultApi {
     const files: VaultFiles = {};
     for (const k of keys) {
       if (k === 'settings') files[SETTINGS] = serializeSettings(w);
+      else if (k === 'events') files[EVENTS] = serializeEvents(w);
+      else if (k === 'relations') files[RELATIONS] = serializeRelations(w);
       else {
         const id = k.slice('entity:'.length);
         if (w.entities[id]) files[entityPath(w.entities, id)] = serializeEntity(w, id);
@@ -128,6 +132,8 @@ export function useVault(): VaultApi {
           if (cur) {
             for (const k of pending.current) {
               if (k === 'settings') next.kinds = cur.kinds;
+              else if (k === 'events') next.events = cur.events;
+              else if (k === 'relations') next.relations = cur.relations;
               else {
                 const id = k.slice('entity:'.length);
                 if (next.entities[id] && cur.entities[id]) {
@@ -196,5 +202,7 @@ export function useVault(): VaultApi {
     setDoc: (id, body) => update((w) => ({ ...w, docs: { ...w.docs, [id]: body } }), `entity:${id}`),
     setKinds: (kinds) => update((w) => ({ ...w, kinds }), 'settings'),
     setShape: (f, s) => update((w) => ({ ...w, shapes: { ...w.shapes, [f]: s } }), `entity:${f}`),
+    setEvents: (events) => update((w) => ({ ...w, events }), 'events'),
+    setRelations: (relations) => update((w) => ({ ...w, relations }), 'relations'),
   };
 }
